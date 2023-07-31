@@ -1,0 +1,244 @@
+---
+title: "Multilabel Classification for Flower Species"
+author: "Om Prabhu"
+date: "31 July 2023"
+output: pdf_document
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(
+       message = FALSE,
+       warning = FALSE,
+       fig.align='center')
+```
+
+# Introduction
+  
+In this project, I have used the *iris* data set to train different classification models with the aim of predicting iris species based on a set of variables.
+
+## Load packages & data set
+
+```{r}
+if(!require(caret)) install.packages("caret", repos = "http://cran.us.r-project.org")
+if(!require(kernlab)) install.packages("kernlab", repos = "http://cran.us.r-project.org")
+
+library(caret)
+library(kernlab)
+```
+
+We now load the data set. The *iris* data set comes built-in with R, hence, there is no need to load it externally.
+```{r}
+# attach the iris dataset to the environment
+data(iris)
+
+# rename the dataset
+dataset <- iris
+```
+
+## Creating a train-test split
+
+We will split the data set into two parts, 80% of which will be used to train our models and 20% that we will reserve for testing & validation. In order to ensure consistent results, we use a fixed seed for splitting the data set.
+
+```{r}
+# create a list of 80% of the rows in the original dataset we can use for training
+set.seed(2)
+validation_index <- createDataPartition(dataset$Species, p=0.80, list=FALSE)
+
+# select 20% of the data for validation
+validation <- dataset[-validation_index,]
+
+# use the remaining 80% of data to training and testing the models
+dataset <- dataset[validation_index,]
+```
+
+<br>
+
+# Analysis of the Data Set
+
+We can now have a look at the data set that will be used for training the models. We can look at the data in a few different ways, such as:
+1. Dimensions of the data set
+2. Types of the attributes
+3. Take a look at the data itself
+4. Levels of the class attribute
+5. Breakdown of the instances in each class
+6. Summary of all attributes
+
+## A Quick Look at the Data Set
+
+Let us first take a quick look at the data set. 
+
+```{r}
+# first 6 rows of the data
+head(dataset)
+```
+
+We can get a quick idea of how many instances (rows) and how many attributes (columns) the data contains with the `dim` function.
+
+```{r}
+# dimensions of dataset
+dim(dataset)
+```
+
+As observed, there are 120 instances and 5 attributes (sepal length, sepal width, petal length, petal width and species). We can also get an idea of the types of attributes as follows:
+
+```{r}
+# types for each attribute
+sapply(dataset, class)
+```
+
+As observed, all the inputs are doubles and the output class value is a factor. Let's look at the class levels (the class refers to the 'Species' column in our data set).
+
+```{r}
+# levels for the class
+levels(dataset$Species)
+```
+
+As we can see, the class has 3 different variables, hence, this is a multi-label classification problem. We can further analyze the data to find out the proportion of instances that belong to each class.
+
+```{r}
+# summarize the class distribution
+percentage <- prop.table(table(dataset$Species)) * 100
+cbind(freq=table(dataset$Species), percentage=percentage)
+```
+
+We can see that the data set is perfectly balanced across the three class labels, since each class has the same proportion of instances.
+
+## Overall Summary of the Data Set
+
+Finally, we can also take a look at a statistical summary of each attribute, which includes the minimum, maximum, mean values along with some important percentile values as well. This gives us a clear idea of the distributions of each attribute.
+
+```{r}
+# summarize the attribute
+summary(dataset)
+```
+
+<br>
+
+# Visualization of the Data Set
+
+Now that we have explored the data and have a basic idea of the types and distributions of each attribute. We can plot the distributions for each attribute as boxplots to better visualize the range of the attributes.
+
+## Single Variable Plots
+
+```{r}
+# split input and output
+x <- dataset[,1:4]
+y <- dataset[,5]
+
+# boxplot for each attribute
+par(mfrow=c(1,4))
+  for(i in 1:4) {
+  boxplot(x[,i], main=names(iris)[i])
+}
+```
+
+This gives a much better idea of the distributions of each attribute and helps us compare the mean values and range of each attribute. As observed, the two attributes denoting petal sizes have a much bigger range compared to the ones denoting sepal sizes.
+
+## Multivariate Plots
+
+Now, let us look at a more detailed comparison between the individual variables. We can again look at boxplots for each attribute, but this time broken down by their class label.
+
+```{r}
+# box plots for each attribute separated by class labels
+featurePlot(x=x, y=y, plot="box")
+```
+Using the above multivariate plot, it is easier to appreciate the differences in the distributions of the attributes for each class value.
+
+<br>
+
+# Algorithms
+
+Now that we have a detailed insight into the data as well as the comparison between individual attributes across all the classes, we can now train some models on the data and use them to estimate the accuracy on unseen data.
+
+## Creating a Test Harness
+
+We will first set up a test harness to use 10-fold cross validation to estimate accuracy. This will split the data set into 10 parts, 9 for training and 1 for testing for all the combinations of train-test splits. In order to get more accurate results, I have repeated the process 3 times with different train-test splits.
+
+```{r}
+# Set up 10-fold cross validation
+control <- trainControl(method="cv", number=10)
+metric <- "Accuracy"
+```
+
+As observed, we use the accuracy metric for evaluating the models. This is the percentage of results that are predicted correctly by the model.
+
+## Building Classification Models
+
+Let us now evaluate 5 different classification models on our test harness:
+1. LDA (Linear Discriminant Analysis)
+2. CT (Classification Trees)
+3. kNN (k-Nearest Neighbours)
+4. SVM (Support Vector Machines)
+5. RF (Random Forest)
+
+To ensure that the evaluation of each algorithm is performed using exactly the same data splits, we need to use the same seed for fitting each model.
+
+```{r}
+# LDA
+set.seed(42)
+fit.lda <- train(Species~., data=dataset, method="lda", metric=metric, trControl=control)
+
+# Classification Tree
+set.seed(42)
+fit.cart <- train(Species~., data=dataset, method="rpart", metric=metric, trControl=control)
+
+# kNN
+set.seed(42)
+fit.knn <- train(Species~., data=dataset, method="knn", metric=metric, trControl=control)
+
+# SVM
+set.seed(42)
+fit.svm <- train(Species~., data=dataset, method="svmRadial", metric=metric, trControl=control)
+
+# Random Forest
+set.seed(42)
+fit.rf <- train(Species~., data=dataset, method="rf", metric=metric, trControl=control)
+```
+
+## Selecting the Best Model
+
+We now have 5 models and accuracy estimations for each. We need to compare the models to each other and select the most accurate. We do this by reporting the accuracy of each model using the summary function.
+
+```{r}
+# summarize accuracy of models
+results <- resamples(list(lda=fit.lda, ct=fit.cart, knn=fit.knn, svm=fit.svm, rf=fit.rf))
+summary(results)
+```
+We can also better visualize these results by plotting the results and comparing the mean and spread of the accuracy.
+
+```{r}
+# compare accuracy of models
+dotplot(results)
+```
+As observed, the LDA model displays the best performance in terms of accuracy. The results for just the LDA model can be summarized as shown below:
+
+```{r}
+# summarize best model
+print(fit.lda)
+```
+<br>
+
+# Making Predictions
+
+Since LDA was the most accurate model, we can now get an idea of the accuracy of this model on the validation set that we created at the very beginning of the project. This gives us an independent final check on the accuracy of the model.
+
+We can run the LDA model directly on the validation data set and summarize the results in form of a confusion matrix as follows:
+
+```{r}
+# accuracy of LDA on the validation dataset
+predictions <- predict(fit.lda, validation)
+confusionMatrix(predictions, validation$Species)
+```
+We can see that the accuracy is 96.67%, suggesting that the model is reasonably accurate and reliable.
+
+<br>
+
+# Conclusion
+
+In summary, we have succeeded in building multiple classification models for predicting iris species from the dimensions of the petals and sepals of the flower. We first carried out an in-depth exploratory data analysis, which familiarized us with the data and helped observe the comparisons between the attributes across various classes. We then set up a test harness using 10-fold cross validation in order to select the best model out of the 5 classification models that we trained. Finally, we selected the best performing model and calculated the accuracy on the validation data set. The accuracy of the best model (LDA) on the validation data set was 96.67%, which suggests that the model is reasonable accurate and reliable.
+
+# References
+
+Since the data set comes built-in with R, there are no particular references for the data. However, the idea for this project stemmed from a Kaggle project that I came across and which is linked below. Although the idea of the project was borrowed, the final code implementation is entirely done by me.
+
+1. [Link to Kaggle Page](https://www.kaggle.com/code/tavoosi/a-beginner-s-guide-to-machine-learning-with-r/script)
